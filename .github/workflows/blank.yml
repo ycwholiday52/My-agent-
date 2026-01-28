@@ -1,9 +1,10 @@
 name: Morning Briefing
 
 on:
-  workflow_dispatch: # This lets you test it manually!
   schedule:
-    - cron: '0 8 * * *'
+    # 16:00 UTC is exactly 8:00 AM PST
+    - cron: '0 16 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
