@@ -2,50 +2,55 @@ import os
 import datetime
 import feedparser
 import requests
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
 
-# --- CONFIG ---
-WEATHER_API_KEY = "your_openweathermap_api_key"
+# --- 配置 ---
+# 建议在 GitHub Secrets 中设置这些，或者直接暂时填在这里测试
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+WEATHER_API_KEY = "f7f9876543210fedcba9876543210" # 替换成你的 OpenWeatherMap Key
 CITY = "Hollister"
 NEWS_RSS = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
 
 class DailyDashboard:
     def get_weather(self):
-        # Fetches real-time weather
-        url = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={WEATHER_API_KEY}&units=metric"
-        data = requests.get(url).json()
-        return f"{data['weather'][0]['description']}, {data['main']['temp']}°C"
+        try:
+            url = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={WEATHER_API_KEY}&units=imperial" # 改成了加州常用的华氏度
+            data = requests.get(url).json()
+            temp = data['main']['temp']
+            desc = data['weather'][0]['description']
+            return f"{desc}, {temp}°F"
+        except:
+            return "Weather unavailable (check your API key)"
 
     def get_top_news(self):
-        # Pulls top 3 headlines
         feed = feedparser.parse(NEWS_RSS)
-        return [{"title": entry.title, "link": entry.link} for entry in feed.entries[:3]]
+        headlines = [f"• {entry.title}" for entry in feed.entries[:3]]
+        return "\n".join(headlines)
 
-    def get_calendar(self):
-        # Note: Requires credentials.json from Google Cloud Console
-        # Cursor can help you set up the OAuth flow if you ask!
-        return ["9:00 AM - Design Sprint", "2:00 PM - Gym", "6:00 PM - Dinner with AI"]
-
-    def generate_prompt_for_ai(self):
-        # This gathers everything to send to the LLM (Gemini/GPT-4)
+    def generate_report(self):
         weather = self.get_weather()
         news = self.get_top_news()
-        tasks = self.get_calendar()
         
-        prompt = f"""
-        Context for today ({datetime.date.today()}):
-        Weather: {weather}
-        Calendar: {tasks}
-        News: {news}
-        
-        Task: Create a '10-minute morning vibe' summary. 
-        Tone: Witty, concise, and motivating.
-        Format: Markdown.
-        """
-        return prompt
+        # 组装最终发给手机的文本
+        report = f"☕️ **Good Morning, Hollister!**\n"
+        report += f"📅 {datetime.date.today().strftime('%A, %b %d')}\n\n"
+        report += f"🌤 **Weather:** {weather}\n\n"
+        report += f"📰 **Top Headlines:**\n{news}\n\n"
+        report += f"✨ *Have a great day!*"
+        return report
 
-# Run logic
+def send_to_telegram(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}
+    requests.post(url, json=payload)
+
 if __name__ == "__main__":
     dashboard = DailyDashboard()
-    print(dashboard.generate_prompt_for_ai())
+    briefing = dashboard.generate_report()
+    
+    # 如果有 Token 就发到手机，没有就打印出来
+    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+        send_to_telegram(briefing)
+        print("Briefing sent to Telegram!")
+    else:
+        print(briefing)
